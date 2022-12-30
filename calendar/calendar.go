@@ -43,7 +43,7 @@ type cellItem struct {
 	time.Time
 }
 
-var cellItemsArr = make([]cellItem, 35)
+var cellItemsArr = make([]cellItem, 42)
 
 // space between months and years dropdown in the header
 var spaceBetweenHeaderDropdowns = unit.Dp(32)
@@ -57,7 +57,7 @@ var allMonthsButtonsArr = [12]monthButton{
 	{Month: 9}, {Month: 10}, {Month: 11}, {Month: 12},
 }
 var allYearsButtonsSlice []yearButton
-var allRows [5]layout.FlexChild
+var allRows [6]layout.FlexChild
 var monthsHeaderRowHeight = unit.Dp(64)
 var viewHeaderHeight = unit.Dp(32)
 
@@ -236,7 +236,8 @@ func (c *Calendar) drawBodyRows(gtx Gtx) Dim {
 	if unit.Dp(minMaxHeight) < minCellHeight {
 		minMaxHeight = gtx.Dp(minCellHeight)
 	}
-	for ; day.Before(endDate) && rowIndex < 5; rowIndex++ {
+	// Todo: Rows can be 4 or 5 or 6, but we are always drawing six Rows
+	for ; day.Before(endDate) || rowIndex < 6; rowIndex++ {
 		var flexChildren []layout.FlexChild
 		for i := 0; i < 7; i++ {
 			cellItemsArr[index].Time = day
