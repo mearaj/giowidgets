@@ -6,6 +6,7 @@ import (
 	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/unit"
 	"gioui.org/widget/material"
 	"github.com/mearaj/giowidgets/calendar"
 	"log"
@@ -25,6 +26,7 @@ func main() {
 func loop(w *app.Window) error {
 	th := material.NewTheme(gofont.Collection())
 	c := calendar.Calendar{Theme: th}
+	c.Inset = layout.UniformInset(unit.Dp(16))
 	var ops op.Ops
 
 	for {

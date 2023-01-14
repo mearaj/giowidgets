@@ -19,9 +19,6 @@ import (
 	"time"
 )
 
-type Dim = layout.Dimensions
-type Gtx = layout.Context
-
 type OnCalendarDateClick func(t time.Time)
 
 var weekdays = [7]time.Weekday{
@@ -407,7 +404,7 @@ func (c *Calendar) drawViewHeader(gtx Gtx) Dim {
 	gtx.Constraints.Max.Y, gtx.Constraints.Min.Y = gtx.Dp(viewHeaderHeight), gtx.Dp(viewHeaderHeight)
 	inset := layout.Inset{Left: unit.Dp(16)}
 	d := inset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		flex := layout.Flex{Spacing: layout.SpaceSides, Alignment: layout.Middle}
+		flex := layout.Flex{Spacing: layout.SpaceEnd, Alignment: layout.Middle}
 		return flex.Layout(gtx,
 			layout.Rigid(func(gtx Gtx) Dim {
 				if c.btnDropdownMonth.Clicked() {
