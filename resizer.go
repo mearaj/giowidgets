@@ -32,20 +32,29 @@ type Resizable struct {
 	next   *Resizable
 }
 
+func NewResizeWidget(axis layout.Axis, resizables []*Resizable) *Resize {
+	r := &Resize{axis: axis, resizables: resizables}
+	for _, rz := range resizables {
+		rz.resize = r
+		if rz.Handle == nil {
+			rz.Handle = r.CustomResizeHandle
+		}
+	}
+	return r
+}
+
 // Layout displays w1 and w2 with handle in between.
 //
 // The widgets w1 and w2 must be able to gracefully resize their minimum and maximum dimensions
 // in order for the resize to be smooth.
-func (r *Resize) Layout(gtx layout.Context, axis layout.Axis, resizables []*Resizable) layout.Dimensions {
+func (r *Resize) Layout(gtx layout.Context) layout.Dimensions {
 	// Compute the first widget's max width/height.
-	r.resizables = resizables
-	if len(resizables) == 0 {
+	if len(r.resizables) == 0 {
 		return layout.Dimensions{}
 	}
-	if len(resizables) == 1 {
-		return resizables[0].Widget(gtx)
+	if len(r.resizables) == 1 {
+		return r.resizables[0].Widget(gtx)
 	}
-	r.axis = axis
 
 	if !r.initialized {
 		r.init(gtx)
@@ -60,7 +69,7 @@ func (r *Resize) Layout(gtx layout.Context, axis layout.Axis, resizables []*Resi
 
 	flex := layout.Flex{Axis: r.axis}
 	return flex.Layout(gtx,
-		resizables[0].Layout(gtx)...,
+		r.resizables[0].Layout(gtx)...,
 	)
 }
 
