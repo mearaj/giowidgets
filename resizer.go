@@ -20,12 +20,16 @@ type Resize struct {
 	length             int
 	totalHandlesLength int
 	resizables         []*Resizable
+	minLength          int
 }
 
 type Resizable struct {
-	Ratio  float32
-	Widget layout.Widget
-	Handle layout.Widget
+	// ratio is only calculated during initialization, based on widget's natural size.
+	//  It acts like minimum threshold ratio value beyond which widget size cannot be further reduced.
+	ratio            float32
+	Widget           layout.Widget
+	DividerHandler   layout.Widget
+	dividerThickness int
 	float
 	resize *Resize
 	prev   *Resizable
@@ -36,8 +40,8 @@ func NewResizeWidget(axis layout.Axis, resizables []*Resizable) *Resize {
 	r := &Resize{axis: axis, resizables: resizables}
 	for _, rz := range resizables {
 		rz.resize = r
-		if rz.Handle == nil {
-			rz.Handle = r.CustomResizeHandle
+		if rz.DividerHandler == nil {
+			rz.DividerHandler = r.CustomResizeHandleBar
 		}
 	}
 	return r
@@ -75,18 +79,29 @@ func (r *Resize) Layout(gtx layout.Context) layout.Dimensions {
 
 func (r *Resize) init(gtx layout.Context) {
 	r.length = r.axis.Convert(gtx.Constraints.Max).X
+	if r.minLength == 0 {
+		r.minLength = int(0.1 * float32(r.length))
+	}
+	allowedMinLength := r.length / len(r.resizables)
+	if r.minLength > allowedMinLength || r.minLength <= 0 {
+		r.minLength = allowedMinLength
+	}
 	var totalRatio float32
 	// Obtain the total ration to reset it between 0.0 - 1.00
 	var totalHandlesLength int
 	for i, rz := range r.resizables {
-		if rz.Handle == nil {
-			rz.Handle = r.CustomResizeHandle
+		if rz.DividerHandler == nil {
+			rz.DividerHandler = r.CustomResizeHandleBar
 		}
 		m := op.Record(gtx.Ops)
-		d := rz.Handle(gtx)
+		d := rz.DividerHandler(gtx)
 		m.Stop()
 		totalHandlesLength += r.axis.Convert(d.Size).X
-		totalRatio += rz.Ratio
+		m = op.Record(gtx.Ops)
+		d = rz.Widget(gtx)
+		m.Stop()
+		rz.ratio = float32(r.axis.Convert(d.Size).X) / float32(r.length)
+		totalRatio += rz.ratio
 		var prevResizable *Resizable
 		var nextResizable *Resizable
 		if i != 0 {
@@ -102,54 +117,46 @@ func (r *Resize) init(gtx layout.Context) {
 	r.totalHandlesLength = totalHandlesLength
 	// Reset the ratio between 0.0 - 1.00
 	var currTotalRatio float32
-	for i, rz := range r.resizables {
-		rz.Ratio /= totalRatio // reset the total ratio
-		currTotalRatio += rz.Ratio
-		if i == len(r.resizables)-1 {
-			currTotalRatio = 1.0
-		}
-		rz.float.Pos = int(float32(r.length) * currTotalRatio)
+	for _, rz := range r.resizables {
+		rz.ratio /= totalRatio // reset the total ratio
+		currTotalRatio += rz.ratio
+		rz.float.pos = int(float32(r.length) * currTotalRatio)
 	}
 }
 
 func (r *Resize) onWindowResize(gtx layout.Context) {
-	maxLength := r.axis.Convert(gtx.Constraints.Max).X
+	currMinLength := r.minLength
+	prevLength := r.length
+	r.minLength = (currMinLength / prevLength) * r.length
+	r.length = r.axis.Convert(gtx.Constraints.Max).X
 	for _, rz := range r.resizables {
-		rz.Ratio = float32(rz.Pos) / float32(r.length)
+		rz.float.pos = int((float32(rz.float.pos) / float32(prevLength)) * float32(r.length))
 	}
-	r.length = maxLength
-	var totalHandlesLength int
-	for _, rz := range r.resizables {
-		rz.float.Pos = int(float32(r.length) * rz.Ratio)
-		m := op.Record(gtx.Ops)
-		d := rz.Handle(gtx)
-		m.Stop()
-		totalHandlesLength += r.axis.Convert(d.Size).X
-	}
-	r.totalHandlesLength = totalHandlesLength
 }
 
 type float struct {
-	Pos  int // position in pixels of the handle
+	pos  int // position in pixels of the handle
 	drag gesture.Drag
 }
 
 func (r *Resizable) Layout(gtx layout.Context) []layout.FlexChild {
 	m := op.Record(gtx.Ops)
-	dims := r.handleResize(gtx)
+	dims := r.handleDrag(gtx)
 	c := m.Stop()
 	children := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			prevPos := 0
+			prePos := 0
 			if r.prev != nil {
-				prevPos = r.prev.Pos
+				prePos = r.prev.pos
 			}
-			gtx.Constraints.Min = image.Point{X: r.Pos - prevPos, Y: 20}
+			gtx.Constraints.Max = image.Point{X: r.pos - prePos, Y: gtx.Constraints.Max.Y}
 			if r.resize.axis == layout.Vertical {
-				gtx.Constraints.Min = r.resize.axis.Convert(gtx.Constraints.Min)
+				gtx.Constraints.Max = r.resize.axis.Convert(gtx.Constraints.Max)
 			}
-			r.Widget(gtx)
-			return Dim{Size: gtx.Constraints.Min}
+
+			d := r.Widget(gtx)
+			d.Size = gtx.Constraints.Max
+			return d
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			c.Add(gtx.Ops)
@@ -162,12 +169,12 @@ func (r *Resizable) Layout(gtx layout.Context) []layout.FlexChild {
 	return children
 }
 
-func (r *Resizable) handleResize(gtx layout.Context) layout.Dimensions {
+func (r *Resizable) handleDrag(gtx layout.Context) layout.Dimensions {
 	if r.next == nil {
 		return layout.Dimensions{}
 	}
 	gtx.Constraints.Min = image.Point{}
-	dims := r.Handle(gtx)
+	dims := r.DividerHandler(gtx)
 
 	var de *pointer.Event
 	for _, e := range r.float.drag.Events(gtx.Metric, gtx, gesture.Axis(r.resize.axis)) {
@@ -176,43 +183,41 @@ func (r *Resizable) handleResize(gtx layout.Context) layout.Dimensions {
 		}
 	}
 
-	prevWidgetPos := 0
-	nextWidgetPos := r.next.Pos
-	currentWidgetSize := 0
-	nextWidgetSize := 0
-	if r.prev != nil {
-		prevWidgetPos = r.prev.Pos
-	}
-	mac := op.Record(gtx.Ops)
-	d := r.Widget(gtx)
-	mac.Stop()
-	currentWidgetSize = r.resize.axis.Convert(d.Size).X
-	mac = op.Record(gtx.Ops)
-	d = r.next.Widget(gtx)
-	mac.Stop()
-	nextWidgetSize = r.resize.axis.Convert(d.Size).X
-
-	minPos := prevWidgetPos + currentWidgetSize
-	maxPos := nextWidgetPos - nextWidgetSize
-
-	// referencing the last element, accounting for all the handle width
-	if r.next.next == nil {
-		maxPos -= r.resize.totalHandlesLength
-	}
-
+	var posDifference float32
 	if de != nil {
-		xy := de.Position.X
+		posDifference = de.Position.X
 		if r.resize.axis == layout.Vertical {
-			xy = de.Position.Y
+			posDifference = de.Position.Y
 		}
-		pos := r.float.Pos + int(xy)
-		r.float.Pos = pos
-	}
 
-	if r.float.Pos < minPos {
-		r.float.Pos = minPos
-	} else if r.float.Pos > maxPos {
-		r.float.Pos = maxPos
+		if posDifference < 0 {
+			for curr := r; curr != nil; curr = curr.prev {
+				curr.float.pos += int(posDifference)
+				minPos := r.resize.minLength
+				if curr.prev != nil {
+					minPos = curr.prev.pos + curr.resize.minLength
+				}
+				if curr.float.pos < minPos {
+					curr.float.pos = minPos
+				} else {
+					break
+				}
+			}
+		}
+		if posDifference > 0 {
+			for curr := r; curr != nil; curr = curr.next {
+				curr.float.pos += int(posDifference)
+				maxPos := r.resize.length
+				if curr.next != nil {
+					maxPos = curr.next.pos - curr.resize.minLength
+				}
+				if curr.float.pos > maxPos {
+					curr.float.pos = maxPos
+				} else {
+					break
+				}
+			}
+		}
 	}
 
 	rect := image.Rectangle{Max: dims.Size}
@@ -227,7 +232,7 @@ func (r *Resizable) handleResize(gtx layout.Context) layout.Dimensions {
 	return layout.Dimensions{Size: dims.Size}
 }
 
-func (r *Resize) CustomResizeHandle(gtx Gtx) Dim {
+func (r *Resize) CustomResizeHandleBar(gtx Gtx) Dim {
 	x := gtx.Dp(unit.Dp(4))
 	y := gtx.Constraints.Max.Y
 	if r.axis == layout.Vertical {

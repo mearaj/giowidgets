@@ -37,7 +37,17 @@ func (c *CustomView) Layout(gtx giowidgets.Gtx) layout.Dimensions {
 
 func loop(w *app.Window) error {
 	//resizer := giowidgets.Resize{}
+	cust1 := CustomView{Title: "Widget One Widget One Widget One Widget One Widget One Widget One Widget One Widget One"}
+	cust2 := CustomView{Title: "Widget Two Widget Two Widget Two Widget Two Widget Two Widget Two Widget Two Widget Two "}
+	cust3 := CustomView{Title: "Widget Three Widget Three Widget Three Widget Three Widget Three Widget Three Widget Three"}
+	cust4 := CustomView{Title: "Widget Four Widget Four Widget Four Widget Four Widget Four Widget Four Widget Four "}
+	r1 := giowidgets.Resizable{Widget: cust1.Layout}
+	r2 := giowidgets.Resizable{Widget: cust2.Layout}
+	r3 := giowidgets.Resizable{Widget: cust3.Layout}
+	r4 := giowidgets.Resizable{Widget: cust4.Layout}
 	var ops op.Ops
+	resizables := []*giowidgets.Resizable{&r1, &r2, &r3, &r4}
+	resizer := giowidgets.NewResizeWidget(layout.Horizontal, resizables)
 
 	for {
 		select {
@@ -47,16 +57,6 @@ func loop(w *app.Window) error {
 				return e.Err
 			case system.FrameEvent:
 				gtx := layout.NewContext(&ops, e)
-				cust1 := CustomView{Title: "Widget One"}
-				cust2 := CustomView{Title: "Widget Two"}
-				cust3 := CustomView{Title: "Widget Three"}
-				cust4 := CustomView{Title: "Widget Four"}
-				r1 := giowidgets.Resizable{Ratio: 0.3, Widget: cust1.Layout}
-				r2 := giowidgets.Resizable{Ratio: 0.3, Widget: cust2.Layout}
-				r3 := giowidgets.Resizable{Ratio: 0.3, Widget: cust3.Layout}
-				r4 := giowidgets.Resizable{Ratio: 0.3, Widget: cust4.Layout}
-				resizables := []*giowidgets.Resizable{&r1, &r2, &r3, &r4}
-				resizer := giowidgets.NewResizeWidget(layout.Horizontal, resizables)
 				resizer.Layout(gtx)
 				//resizer.Layout(gtx, cust2.Layout, nil)
 				//resizer.Layout(gtx, cust3.Layout, nil)
