@@ -32,7 +32,9 @@ func (c *CustomView) Layout(gtx giowidgets.Gtx) layout.Dimensions {
 	if c.Theme == nil {
 		c.Theme = material.NewTheme(gofont.Collection())
 	}
-	return material.Body1(c.Theme, c.Title).Layout(gtx)
+	return func(gtx giowidgets.Gtx) giowidgets.Dim {
+		return material.Body1(c.Theme, c.Title).Layout(gtx)
+	}(gtx)
 }
 
 func loop(w *app.Window) error {

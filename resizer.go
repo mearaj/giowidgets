@@ -1,6 +1,7 @@
 package giowidgets
 
 import (
+	"fmt"
 	"gioui.org/gesture"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
@@ -113,6 +114,13 @@ func (r *Resize) init(gtx layout.Context) {
 		rz.prev = prevResizable
 		rz.next = nextResizable
 		rz.resize = r
+		if i == len(r.resizables)-1 {
+			if totalRatio <= 1 {
+				totalRatio -= rz.ratio
+				rz.ratio = 1 - totalRatio
+				totalRatio = 1
+			}
+		}
 	}
 	r.totalHandlesLength = totalHandlesLength
 	// Reset the ratio between 0.0 - 1.00
@@ -122,6 +130,8 @@ func (r *Resize) init(gtx layout.Context) {
 		currTotalRatio += rz.ratio
 		rz.float.pos = int(float32(r.length) * currTotalRatio)
 	}
+	fmt.Println(totalRatio)
+	fmt.Println(currTotalRatio)
 }
 
 func (r *Resize) onWindowResize(gtx layout.Context) {
@@ -153,7 +163,6 @@ func (r *Resizable) Layout(gtx layout.Context) []layout.FlexChild {
 			if r.resize.axis == layout.Vertical {
 				gtx.Constraints.Max = r.resize.axis.Convert(gtx.Constraints.Max)
 			}
-
 			d := r.Widget(gtx)
 			d.Size = gtx.Constraints.Max
 			return d
