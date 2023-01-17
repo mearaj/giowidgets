@@ -8,9 +8,10 @@ import (
 	"gioui.org/op"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
-	"github.com/mearaj/giowidgets/calendar"
+	"github.com/mearaj/giowidgets"
 	"log"
 	"os"
+	"time"
 )
 
 func main() {
@@ -25,8 +26,9 @@ func main() {
 }
 func loop(w *app.Window) error {
 	th := material.NewTheme(gofont.Collection())
-	c := calendar.Calendar{Theme: th}
-	c.Inset = layout.UniformInset(unit.Dp(16))
+	c := giowidgets.Calendar{Theme: th}
+	c.BodyInset = layout.UniformInset(unit.Dp(16))
+	c.FirstDayOfWeek = time.Monday
 	var ops op.Ops
 
 	for {

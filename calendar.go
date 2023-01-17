@@ -1,4 +1,4 @@
-package calendar
+package giowidgets
 
 import (
 	"fmt"
@@ -21,10 +21,6 @@ import (
 
 type OnCalendarDateClick func(t time.Time)
 
-var weekdays = [7]time.Weekday{
-	time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday, time.Saturday, time.Sunday,
-}
-
 type monthButton struct {
 	Month time.Month
 	widget.Clickable
@@ -40,8 +36,6 @@ type cellItem struct {
 	time.Time
 }
 
-var cellItemsArr = make([]cellItem, 42)
-
 // space between months and years dropdown in the header
 var spaceBetweenHeaderDropdowns = unit.Dp(32)
 
@@ -54,7 +48,6 @@ var allMonthsButtonsArr = [12]monthButton{
 	{Month: 9}, {Month: 10}, {Month: 11}, {Month: 12},
 }
 var allYearsButtonsSlice []yearButton
-var allRows [6]layout.FlexChild
 var monthsHeaderRowHeight = unit.Dp(64)
 var viewHeaderHeight = unit.Dp(32)
 
@@ -69,20 +62,22 @@ func init() {
 }
 
 type Calendar struct {
-	Theme            *material.Theme
-	time             time.Time
-	btnDropdownMonth widget.Clickable
-	monthsList       layout.List
-	yearsList        layout.List
-	btnDropdownYear  widget.Clickable
-	initialized      bool
-	showMonths       bool
-	showYears        bool
-	fullView         widget.Clickable
-	viewList         layout.List
-	MaxWidthHeight   image.Point
+	Theme              *material.Theme
+	time               time.Time
+	btnDropdownMonth   widget.Clickable
+	monthsList         layout.List
+	yearsList          layout.List
+	btnDropdownYear    widget.Clickable
+	initialized        bool
+	ShowMonthsDropdown bool
+	showYearsDropdown  bool
+	fullView           widget.Clickable
+	viewList           layout.List
 	OnCalendarDateClick
-	layout.Inset
+	BodyInset      Inset
+	HeaderInset    Inset
+	weekdays       [7]time.Weekday
+	FirstDayOfWeek time.Weekday
 }
 
 func (c *Calendar) SetTime(t time.Time) {
@@ -98,57 +93,58 @@ func (c *Calendar) Layout(gtx Gtx) Dim {
 		if c.Time().IsZero() {
 			c.SetTime(now)
 		}
+		c.weekdays = [7]time.Weekday{time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday, time.Saturday, time.Sunday}
 		c.initialized = true
 	}
 	if c.Theme == nil {
 		c.Theme = material.NewTheme(gofont.Collection())
 	}
+
+	firstDay := int(c.FirstDayOfWeek)
+	c.weekdays[0] = c.FirstDayOfWeek
+	for i := 1; i < 7; i++ {
+		firstDay++
+		firstDay %= 7
+		c.weekdays[i] = time.Weekday(firstDay)
+	}
+
 	if c.fullView.Clicked() {
 		if !c.btnDropdownMonth.Pressed() {
-			c.showMonths = false
+			c.ShowMonthsDropdown = false
 		}
 		if !c.btnDropdownYear.Pressed() {
-			c.showYears = false
+			c.showYearsDropdown = false
 		}
 	}
-
-	c.fullView.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return Dim{Size: image.Point{
-			X: gtx.Constraints.Max.X,
-			Y: gtx.Constraints.Max.Y,
-		}}
+	d := c.fullView.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return c.BodyInset.Layout(gtx, func(gtx Gtx) Dim {
+			flex := Flex{Axis: layout.Vertical}
+			return flex.Layout(gtx,
+				layout.Rigid(c.drawViewHeader),
+				layout.Rigid(c.drawHeaderRow),
+				layout.Flexed(1, c.drawBodyRows),
+			)
+		})
 	})
-
-	d := c.Inset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		flex := layout.Flex{Axis: layout.Vertical}
-		return flex.Layout(gtx,
-			layout.Rigid(func(gtx Gtx) Dim {
-				return c.drawViewHeader(gtx)
-			}),
-			layout.Rigid(c.drawHeaderRow),
-			layout.Rigid(c.drawBodyRows),
-		)
-	})
-	if c.showMonths {
+	if c.ShowMonthsDropdown {
 		c.drawMonthsDropdownItems(gtx)
 	}
-	if c.showYears {
+	if c.showYearsDropdown {
 		gtx.Constraints.Max.Y = d.Size.Y - gtx.Dp(viewHeaderHeight)
 		c.drawYearsDropdownItems(gtx)
 	}
-
 	return d
 }
 
 func (c *Calendar) drawHeaderRow(gtx Gtx) Dim {
-	var flexChildren []layout.FlexChild
+	var flexChildren = make([]FlexChild, len(c.weekdays))
 	maxWidth := gtx.Constraints.Max.X
 	columnWidth := maxWidth / 7
-	for _, day := range weekdays {
+	for i, day := range c.weekdays {
 		dayStr := strings.ToUpper(day.String()[0:3])
-		flexChildren = append(flexChildren, c.drawHeaderColumn(gtx, dayStr, columnWidth))
+		flexChildren[i] = c.drawHeaderColumn(gtx, dayStr, columnWidth)
 	}
-	flex := layout.Flex{}
+	flex := Flex{}
 	mac := op.Record(gtx.Ops)
 	d := flex.Layout(gtx, flexChildren...)
 	call := mac.Stop()
@@ -157,11 +153,11 @@ func (c *Calendar) drawHeaderRow(gtx Gtx) Dim {
 	call.Add(gtx.Ops)
 	return d
 }
-func (c *Calendar) drawHeaderColumn(gtx Gtx, day string, columnWidth int) layout.FlexChild {
+func (c *Calendar) drawHeaderColumn(gtx Gtx, day string, columnWidth int) FlexChild {
 	gtx.Constraints.Min.Y, gtx.Constraints.Max.Y = gtx.Dp(monthsHeaderRowHeight), gtx.Dp(monthsHeaderRowHeight)
 	return layout.Rigid(func(gtx Gtx) Dim {
 		gtx.Constraints.Min.X, gtx.Constraints.Max.X = columnWidth, columnWidth
-		return layout.UniformInset(unit.Dp(16)).Layout(gtx, func(gtx Gtx) Dim {
+		return layout.UniformInset(16).Layout(gtx, func(gtx Gtx) Dim {
 			return layout.Center.Layout(gtx, func(gtx Gtx) Dim {
 				label := material.Label(c.Theme, c.Theme.TextSize, day)
 				label.Color = c.Theme.ContrastFg
@@ -173,7 +169,7 @@ func (c *Calendar) drawHeaderColumn(gtx Gtx, day string, columnWidth int) layout
 	})
 }
 
-func (c *Calendar) drawColumn(gtx Gtx, columnWidth int, btn *cellItem) layout.FlexChild {
+func (c *Calendar) drawColumn(gtx Gtx, columnWidth int, btn *cellItem) FlexChild {
 	dayStr := fmt.Sprintf("%d", btn.Day())
 	return layout.Rigid(func(gtx Gtx) Dim {
 		bgColor := c.Theme.Bg
@@ -197,16 +193,19 @@ func (c *Calendar) drawColumn(gtx Gtx, columnWidth int, btn *cellItem) layout.Fl
 				txtColor.A = 240
 			}
 		}
-		return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return btn.Layout(gtx, func(gtx Gtx) Dim {
 			mac := op.Record(gtx.Ops)
 			gtx.Constraints.Min.X, gtx.Constraints.Max.X = columnWidth, columnWidth
 			d := layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx Gtx) Dim {
+				center := layout.Center
 				txtSize := c.Theme.TextSize
-				txtSize = txtSize * 1.5
-				label := material.Label(c.Theme, txtSize, dayStr)
-				label.MaxLines = 1
-				label.Color = txtColor
-				d := label.Layout(gtx)
+				txtSize *= 1.5
+				d := center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					label := material.Label(c.Theme, txtSize, dayStr)
+					label.MaxLines = 1
+					label.Color = txtColor
+					return label.Layout(gtx)
+				})
 				return d
 			})
 			call := mac.Stop()
@@ -219,7 +218,7 @@ func (c *Calendar) drawColumn(gtx Gtx, columnWidth int, btn *cellItem) layout.Fl
 }
 
 func (c *Calendar) drawBodyRows(gtx Gtx) Dim {
-	flex := layout.Flex{Axis: layout.Vertical}
+	flex := Flex{Axis: layout.Vertical}
 	t := c.Time()
 	maxWidth := gtx.Constraints.Max.X
 	columnWidth := maxWidth / 7
@@ -227,31 +226,53 @@ func (c *Calendar) drawBodyRows(gtx Gtx) Dim {
 	lastDate := lastDayOfWeek(t, time.Monday)
 	day := startDate
 	endDate := lastDate
-	index := 0
-	rowIndex := 0
-	minMaxHeight := c.MaxWidthHeight.Y - gtx.Dp(viewHeaderHeight+monthsHeaderRowHeight)
+
+	allRows := make([]FlexChild, 0)
+	cellItemsArr := make([]cellItem, 0)
+	for rowIndex, cellIndex := 0, 0; day.Before(endDate) || rowIndex < 6; rowIndex++ {
+		var shouldBreak bool
+		for i := 0; i < 7; i++ {
+			// Minimum row cellIndex is 3 (ie at least 4 rows) nad max row cellIndex is 5 (ie at least 6 rows)
+			if (rowIndex == 4 || rowIndex == 5) && i == 0 {
+				if day.Month() != c.Time().Month() {
+					allRows = allRows[:rowIndex]
+					shouldBreak = true
+					break
+				}
+			}
+			cellItemsArr = append(cellItemsArr, cellItem{})
+			cellItemsArr[cellIndex].Time = day
+			cellIndex++
+			day = day.AddDate(0, 0, 1)
+			if i == 0 {
+				allRows = append(allRows, FlexChild{})
+			}
+		}
+		if shouldBreak {
+			break
+		}
+	}
+	minMaxHeight := gtx.Constraints.Max.Y / len(allRows)
 	if unit.Dp(minMaxHeight) < minCellHeight {
 		minMaxHeight = gtx.Dp(minCellHeight)
 	}
-	// Todo: Rows can be 4 or 5 or 6, but we are always drawing six Rows
-	for ; day.Before(endDate) || rowIndex < 6; rowIndex++ {
-		var flexChildren []layout.FlexChild
+	cellIndex := 0
+	for rowIndex := range allRows {
+		var flexChildren []FlexChild
 		for i := 0; i < 7; i++ {
-			cellItemsArr[index].Time = day
-			flexChildren = append(flexChildren, c.drawColumn(gtx, columnWidth, &cellItemsArr[index]))
-			index++
-			day = day.AddDate(0, 0, 1)
+			flexChildren = append(flexChildren, c.drawColumn(gtx, columnWidth, &cellItemsArr[cellIndex]))
+			cellIndex++
 		}
 		flexChild := layout.Rigid(func(gtx Gtx) Dim {
-			flex := layout.Flex{}
+			flex := Flex{}
 			gtx.Constraints.Min.Y, gtx.Constraints.Max.Y = minMaxHeight, minMaxHeight
 			return flex.Layout(gtx, flexChildren...)
 		})
 		allRows[rowIndex] = flexChild
 	}
 	c.viewList.Axis = layout.Vertical
-	d := c.viewList.Layout(gtx, 1, func(gtx layout.Context, index int) layout.Dimensions {
-		return flex.Layout(gtx, allRows[:]...)
+	d := c.viewList.Layout(gtx, 1, func(gtx Gtx, index int) Dim {
+		return flex.Layout(gtx, allRows...)
 	})
 	return d
 }
@@ -271,24 +292,23 @@ func (c *Calendar) OnYearButtonClick(gtx Gtx, year *yearButton) {
 }
 
 func (c *Calendar) drawMonthsDropdownItems(gtx Gtx) Dim {
-	gtx.Constraints.Max.Y = gtx.Constraints.Max.Y - gtx.Dp(viewHeaderHeight)
+	gtx.Constraints.Max.Y -= gtx.Dp(viewHeaderHeight)
 	op.Offset(image.Point{
 		X: gtx.Dp(16),
 		Y: gtx.Dp(viewHeaderHeight) + gtx.Dp(8),
 	}).Add(gtx.Ops)
 	layout.Stack{}.Layout(gtx,
-		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+		layout.Stacked(func(gtx Gtx) Dim {
 			mac := op.Record(gtx.Ops)
 			gtx.Constraints.Min.X = gtx.Dp(dropdownWidth)
 			c.monthsList.Axis = layout.Vertical
-
 			border := widget.Border{
 				Color:        c.Theme.ContrastBg,
 				CornerRadius: 0,
 				Width:        unit.Dp(1),
 			}
-			d := border.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				d := c.monthsList.Layout(gtx, len(allMonthsButtonsArr), func(gtx layout.Context, index int) layout.Dimensions {
+			d := border.Layout(gtx, func(gtx Gtx) Dim {
+				d := c.monthsList.Layout(gtx, len(allMonthsButtonsArr), func(gtx Gtx, index int) Dim {
 					bgColor := c.Theme.Bg
 					txtColor := c.Theme.Fg
 					isSelected := c.Time().Month().String() == allMonthsButtonsArr[index].Month.String()
@@ -297,18 +317,13 @@ func (c *Calendar) drawMonthsDropdownItems(gtx Gtx) Dim {
 						txtColor = c.Theme.Bg
 					}
 					if allMonthsButtonsArr[index].Clicked() {
-						c.showMonths = false
+						c.ShowMonthsDropdown = false
 						c.OnMonthButtonClick(gtx, &allMonthsButtonsArr[index])
 					}
 					mac := op.Record(gtx.Ops)
-					d := allMonthsButtonsArr[index].Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						inset := layout.Inset{
-							Top:    unit.Dp(8),
-							Bottom: unit.Dp(8),
-							Left:   unit.Dp(16),
-							Right:  unit.Dp(16),
-						}
-						return inset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					d := allMonthsButtonsArr[index].Layout(gtx, func(gtx Gtx) Dim {
+						inset := Inset{Top: 8, Bottom: 8, Left: 16, Right: 16}
+						return inset.Layout(gtx, func(gtx Gtx) Dim {
 							txt := allMonthsButtonsArr[index].Month.String()
 							label := material.Label(c.Theme, c.Theme.TextSize, txt)
 							label.Alignment = text.Start
@@ -335,24 +350,19 @@ func (c *Calendar) drawMonthsDropdownItems(gtx Gtx) Dim {
 }
 
 func (c *Calendar) drawYearsDropdownItems(gtx Gtx) Dim {
-	gtx.Constraints.Max.Y = gtx.Constraints.Max.Y - gtx.Dp(viewHeaderHeight)
+	gtx.Constraints.Max.Y -= gtx.Dp(viewHeaderHeight)
 	op.Offset(image.Point{
 		X: gtx.Dp(16) + gtx.Dp(dropdownWidth) + gtx.Dp(spaceBetweenHeaderDropdowns),
 		Y: gtx.Dp(viewHeaderHeight) + gtx.Dp(8),
 	}).Add(gtx.Ops)
 	layout.Stack{}.Layout(gtx,
-		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+		layout.Stacked(func(gtx Gtx) Dim {
 			mac := op.Record(gtx.Ops)
 			gtx.Constraints.Min.X = gtx.Dp(dropdownWidth)
 			c.yearsList.Axis = layout.Vertical
-
-			border := widget.Border{
-				Color:        c.Theme.ContrastBg,
-				CornerRadius: 0,
-				Width:        unit.Dp(1),
-			}
-			d := border.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				d := c.yearsList.Layout(gtx, len(allYearsButtonsSlice), func(gtx layout.Context, index int) layout.Dimensions {
+			border := widget.Border{Color: c.Theme.ContrastBg, CornerRadius: 0, Width: unit.Dp(1)}
+			d := border.Layout(gtx, func(gtx Gtx) Dim {
+				d := c.yearsList.Layout(gtx, len(allYearsButtonsSlice), func(gtx Gtx, index int) Dim {
 					bgColor := c.Theme.Bg
 					txtColor := c.Theme.Fg
 					isSelected := c.Time().Year() == allYearsButtonsSlice[index].Year
@@ -361,18 +371,13 @@ func (c *Calendar) drawYearsDropdownItems(gtx Gtx) Dim {
 						txtColor = c.Theme.Bg
 					}
 					if allYearsButtonsSlice[index].Clicked() {
-						c.showYears = false
+						c.showYearsDropdown = false
 						c.OnYearButtonClick(gtx, &allYearsButtonsSlice[index])
 					}
 					mac := op.Record(gtx.Ops)
-					d := allYearsButtonsSlice[index].Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						inset := layout.Inset{
-							Top:    unit.Dp(8),
-							Bottom: unit.Dp(8),
-							Left:   unit.Dp(16),
-							Right:  unit.Dp(16),
-						}
-						return inset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					d := allYearsButtonsSlice[index].Layout(gtx, func(gtx Gtx) Dim {
+						inset := Inset{Top: 8, Bottom: 8, Left: 16, Right: 16}
+						return inset.Layout(gtx, func(gtx Gtx) Dim {
 							txt := fmt.Sprintf("%d", allYearsButtonsSlice[index].Year)
 							label := material.Label(c.Theme, c.Theme.TextSize, txt)
 							label.Alignment = text.Start
@@ -402,15 +407,14 @@ func (c *Calendar) drawViewHeader(gtx Gtx) Dim {
 	month := c.Time().Month().String()
 	year := fmt.Sprintf("%d", c.Time().Year())
 	gtx.Constraints.Max.Y, gtx.Constraints.Min.Y = gtx.Dp(viewHeaderHeight), gtx.Dp(viewHeaderHeight)
-	inset := layout.Inset{Left: unit.Dp(16)}
-	d := inset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		flex := layout.Flex{Spacing: layout.SpaceEnd, Alignment: layout.Middle}
+	d := c.HeaderInset.Layout(gtx, func(gtx Gtx) Dim {
+		flex := Flex{Spacing: layout.SpaceEnd, Alignment: layout.Middle}
 		return flex.Layout(gtx,
 			layout.Rigid(func(gtx Gtx) Dim {
 				if c.btnDropdownMonth.Clicked() {
-					c.showMonths = !c.showMonths
-					c.showYears = false
-					if c.showMonths {
+					c.ShowMonthsDropdown = !c.ShowMonthsDropdown
+					c.showYearsDropdown = false
+					if c.ShowMonthsDropdown {
 						for i, eachButton := range allMonthsButtonsArr {
 							if eachButton.Month.String() == c.Time().Month().String() {
 								c.monthsList.Position.First = i
@@ -422,7 +426,7 @@ func (c *Calendar) drawViewHeader(gtx Gtx) Dim {
 				}
 				gtx.Constraints.Min.X = gtx.Dp(dropdownWidth)
 				d := c.btnDropdownMonth.Layout(gtx, func(gtx Gtx) Dim {
-					flex := layout.Flex{Spacing: layout.SpaceBetween}
+					flex := Flex{Spacing: layout.SpaceBetween}
 					return flex.Layout(gtx,
 						layout.Rigid(func(gtx Gtx) Dim {
 							label := material.Label(c.Theme, c.Theme.TextSize, month)
@@ -440,15 +444,15 @@ func (c *Calendar) drawViewHeader(gtx Gtx) Dim {
 			layout.Rigid(layout.Spacer{Width: spaceBetweenHeaderDropdowns}.Layout),
 			layout.Rigid(func(gtx Gtx) Dim {
 				if c.btnDropdownYear.Clicked() {
-					c.showMonths = false
-					c.showYears = !c.showYears
-					if c.showYears {
+					c.ShowMonthsDropdown = false
+					c.showYearsDropdown = !c.showYearsDropdown
+					if c.showYearsDropdown {
 						c.scrollToSelectedYear()
 					}
 				}
 				d := c.btnDropdownYear.Layout(gtx, func(gtx Gtx) Dim {
 					gtx.Constraints.Min.X = gtx.Dp(dropdownWidth)
-					flex := layout.Flex{Spacing: layout.SpaceBetween}
+					flex := Flex{Spacing: layout.SpaceBetween}
 					return flex.Layout(gtx,
 						layout.Rigid(func(gtx Gtx) Dim {
 							label := material.Label(c.Theme, c.Theme.TextSize, year)
