@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	gioui.org v0.0.0-20230107005120-f8221bb2ab3a
+	gioui.org/x v0.0.0-20221229102800-fabadb41b212
 	golang.org/x/exp/shiny v0.0.0-20230113213754-f9f960f08ad4
 )
 

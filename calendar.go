@@ -11,6 +11,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"gioui.org/x/component"
 	"golang.org/x/exp/shiny/materialdesign/colornames"
 	"golang.org/x/exp/shiny/materialdesign/icons"
 	"image"
@@ -79,6 +80,8 @@ type Calendar struct {
 	weekdays       [7]time.Weekday
 	FirstDayOfWeek time.Weekday
 	cellItemsArr   []*cellItem
+	maxWidth       int
+	maxHeight      int
 }
 
 func (c *Calendar) SetTime(t time.Time) {
@@ -104,6 +107,8 @@ func (c *Calendar) Layout(gtx Gtx) Dim {
 	if c.Theme == nil {
 		c.Theme = material.NewTheme(gofont.Collection())
 	}
+	c.maxWidth = gtx.Constraints.Max.X
+	c.maxHeight = gtx.Constraints.Max.Y
 
 	firstDay := int(c.FirstDayOfWeek)
 	c.weekdays[0] = c.FirstDayOfWeek
@@ -167,8 +172,11 @@ func (c *Calendar) drawHeaderColumn(gtx Gtx, day string, columnWidth int) FlexCh
 				label := material.Label(c.Theme, c.Theme.TextSize, day)
 				label.Color = c.Theme.ContrastFg
 				label.MaxLines = 1
-				d := label.Layout(gtx)
-				return d
+				if c.maxWidth < gtx.Dp(500) {
+					label.Text = day[:1]
+					label.TextSize = unit.Sp(14)
+				}
+				return component.TruncatingLabelStyle(label).Layout(gtx)
 			})
 		})
 	})
@@ -209,6 +217,9 @@ func (c *Calendar) drawColumn(gtx Gtx, columnWidth int, btn *cellItem) FlexChild
 					label := material.Label(c.Theme, txtSize, dayStr)
 					label.MaxLines = 1
 					label.Color = txtColor
+					if c.maxWidth < gtx.Dp(400) {
+						label.TextSize = unit.Sp(16)
+					}
 					return label.Layout(gtx)
 				})
 				return d
@@ -267,6 +278,9 @@ func (c *Calendar) drawBodyRows(gtx Gtx) Dim {
 		}
 		flexChild := layout.Rigid(func(gtx Gtx) Dim {
 			flex := Flex{}
+			if c.maxWidth < gtx.Dp(400) {
+				minMaxHeight = int(float64(minMaxHeight) / 1.10)
+			}
 			gtx.Constraints.Min.Y = minMaxHeight
 			return flex.Layout(gtx, flexChildren...)
 		})
@@ -431,8 +445,7 @@ func (c *Calendar) drawViewHeader(gtx Gtx) Dim {
 					flex := Flex{Spacing: layout.SpaceBetween}
 					return flex.Layout(gtx,
 						layout.Rigid(func(gtx Gtx) Dim {
-							label := material.Label(c.Theme, c.Theme.TextSize, month)
-							return label.Layout(gtx)
+							return material.Label(c.Theme, c.Theme.TextSize, month).Layout(gtx)
 						}),
 						layout.Rigid(layout.Spacer{Width: unit.Dp(16)}.Layout),
 						layout.Rigid(func(gtx Gtx) Dim {
