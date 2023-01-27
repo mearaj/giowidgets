@@ -78,6 +78,7 @@ type Calendar struct {
 	HeaderInset    Inset
 	weekdays       [7]time.Weekday
 	FirstDayOfWeek time.Weekday
+	cellItemsArr   []*cellItem
 }
 
 func (c *Calendar) SetTime(t time.Time) {
@@ -92,6 +93,10 @@ func (c *Calendar) Layout(gtx Gtx) Dim {
 		now := time.Now()
 		if c.Time().IsZero() {
 			c.SetTime(now)
+		}
+		c.cellItemsArr = make([]*cellItem, 0)
+		for i := 0; i < 42; i++ {
+			c.cellItemsArr = append(c.cellItemsArr, &cellItem{})
 		}
 		c.weekdays = [7]time.Weekday{time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday, time.Saturday, time.Sunday}
 		c.initialized = true
@@ -228,11 +233,11 @@ func (c *Calendar) drawBodyRows(gtx Gtx) Dim {
 	endDate := lastDate
 
 	allRows := make([]FlexChild, 0)
-	cellItemsArr := make([]cellItem, 0)
+	cellItemsArr := make([]*cellItem, 0)
 	for rowIndex, cellIndex := 0, 0; day.Before(endDate) || rowIndex < 6; rowIndex++ {
 		var shouldBreak bool
 		for i := 0; i < 7; i++ {
-			// Minimum row cellIndex is 3 (ie at least 4 rows) nad max row cellIndex is 5 (ie at least 6 rows)
+			// Minimum row cellIndex is 3 (ie at least 4 rows) and max row cellIndex is 5 (ie at least 6 rows)
 			if (rowIndex == 4 || rowIndex == 5) && i == 0 {
 				if day.Month() != c.Time().Month() {
 					allRows = allRows[:rowIndex]
@@ -240,7 +245,7 @@ func (c *Calendar) drawBodyRows(gtx Gtx) Dim {
 					break
 				}
 			}
-			cellItemsArr = append(cellItemsArr, cellItem{})
+			cellItemsArr = append(cellItemsArr, c.cellItemsArr[cellIndex])
 			cellItemsArr[cellIndex].Time = day
 			cellIndex++
 			day = day.AddDate(0, 0, 1)
@@ -252,20 +257,17 @@ func (c *Calendar) drawBodyRows(gtx Gtx) Dim {
 			break
 		}
 	}
-	minMaxHeight := gtx.Constraints.Max.Y / len(allRows)
-	if unit.Dp(minMaxHeight) < minCellHeight {
-		minMaxHeight = gtx.Dp(minCellHeight)
-	}
+	minMaxHeight := gtx.Dp(minCellHeight)
 	cellIndex := 0
 	for rowIndex := range allRows {
 		var flexChildren []FlexChild
 		for i := 0; i < 7; i++ {
-			flexChildren = append(flexChildren, c.drawColumn(gtx, columnWidth, &cellItemsArr[cellIndex]))
+			flexChildren = append(flexChildren, c.drawColumn(gtx, columnWidth, cellItemsArr[cellIndex]))
 			cellIndex++
 		}
 		flexChild := layout.Rigid(func(gtx Gtx) Dim {
 			flex := Flex{}
-			gtx.Constraints.Min.Y, gtx.Constraints.Max.Y = minMaxHeight, minMaxHeight
+			gtx.Constraints.Min.Y = minMaxHeight
 			return flex.Layout(gtx, flexChildren...)
 		})
 		allRows[rowIndex] = flexChild
@@ -350,7 +352,7 @@ func (c *Calendar) drawMonthsDropdownItems(gtx Gtx) Dim {
 }
 
 func (c *Calendar) drawYearsDropdownItems(gtx Gtx) Dim {
-	gtx.Constraints.Max.Y -= gtx.Dp(viewHeaderHeight)
+	gtx.Constraints.Max.Y = gtx.Dp(minCellHeight*4 + viewHeaderHeight)
 	op.Offset(image.Point{
 		X: gtx.Dp(16) + gtx.Dp(dropdownWidth) + gtx.Dp(spaceBetweenHeaderDropdowns),
 		Y: gtx.Dp(viewHeaderHeight) + gtx.Dp(8),
