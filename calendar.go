@@ -11,7 +11,6 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"gioui.org/x/component"
 	"golang.org/x/exp/shiny/materialdesign/colornames"
 	"golang.org/x/exp/shiny/materialdesign/icons"
 	"image"
@@ -41,7 +40,6 @@ type cellItem struct {
 var spaceBetweenHeaderDropdowns = unit.Dp(32)
 
 const dropdownWidth = unit.Dp(120)
-const minCellHeight = unit.Dp(80)
 
 var allMonthsButtonsArr = [12]monthButton{
 	{Month: 1}, {Month: 2}, {Month: 3}, {Month: 4},
@@ -167,7 +165,11 @@ func (c *Calendar) drawHeaderColumn(gtx Gtx, day string, columnWidth int) FlexCh
 	gtx.Constraints.Min.Y, gtx.Constraints.Max.Y = gtx.Dp(monthsHeaderRowHeight), gtx.Dp(monthsHeaderRowHeight)
 	return layout.Rigid(func(gtx Gtx) Dim {
 		gtx.Constraints.Min.X, gtx.Constraints.Max.X = columnWidth, columnWidth
-		return layout.UniformInset(16).Layout(gtx, func(gtx Gtx) Dim {
+		inset := layout.UniformInset(16)
+		if c.maxWidth < gtx.Dp(500) {
+			inset.Top, inset.Bottom, inset.Right, inset.Left = 8, 8, 8, 8
+		}
+		return inset.Layout(gtx, func(gtx Gtx) Dim {
 			return layout.Center.Layout(gtx, func(gtx Gtx) Dim {
 				label := material.Label(c.Theme, c.Theme.TextSize, day)
 				label.Color = c.Theme.ContrastFg
@@ -176,7 +178,7 @@ func (c *Calendar) drawHeaderColumn(gtx Gtx, day string, columnWidth int) FlexCh
 					label.Text = day[:1]
 					label.TextSize = unit.Sp(14)
 				}
-				return component.TruncatingLabelStyle(label).Layout(gtx)
+				return label.Layout(gtx)
 			})
 		})
 	})
@@ -187,6 +189,7 @@ func (c *Calendar) drawColumn(gtx Gtx, columnWidth int, btn *cellItem) FlexChild
 	return layout.Rigid(func(gtx Gtx) Dim {
 		bgColor := c.Theme.Bg
 		txtColor := c.Theme.Fg
+		txtColor.A = 170
 		if btn.Month() != c.Time().Month() {
 			bgColor = color.NRGBA(colornames.BlueGrey50)
 			txtColor.A = 100
@@ -209,16 +212,18 @@ func (c *Calendar) drawColumn(gtx Gtx, columnWidth int, btn *cellItem) FlexChild
 		return btn.Layout(gtx, func(gtx Gtx) Dim {
 			mac := op.Record(gtx.Ops)
 			gtx.Constraints.Min.X, gtx.Constraints.Max.X = columnWidth, columnWidth
+			gtx.Constraints.Min.Y, gtx.Constraints.Max.Y = columnWidth, columnWidth
 			d := layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx Gtx) Dim {
-				center := layout.Center
+				center := layout.N
 				txtSize := c.Theme.TextSize
 				txtSize *= 1.5
 				d := center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					label := material.Label(c.Theme, txtSize, dayStr)
 					label.MaxLines = 1
 					label.Color = txtColor
-					if c.maxWidth < gtx.Dp(400) {
-						label.TextSize = unit.Sp(16)
+					label.Alignment = text.Middle
+					if c.maxWidth < gtx.Dp(500) {
+						label.TextSize = unit.Sp(14)
 					}
 					return label.Layout(gtx)
 				})
@@ -268,7 +273,6 @@ func (c *Calendar) drawBodyRows(gtx Gtx) Dim {
 			break
 		}
 	}
-	minMaxHeight := gtx.Dp(minCellHeight)
 	cellIndex := 0
 	for rowIndex := range allRows {
 		var flexChildren []FlexChild
@@ -278,10 +282,7 @@ func (c *Calendar) drawBodyRows(gtx Gtx) Dim {
 		}
 		flexChild := layout.Rigid(func(gtx Gtx) Dim {
 			flex := Flex{}
-			if c.maxWidth < gtx.Dp(400) {
-				minMaxHeight = int(float64(minMaxHeight) / 1.10)
-			}
-			gtx.Constraints.Min.Y = minMaxHeight
+			gtx.Constraints.Min.Y, gtx.Constraints.Max.Y = columnWidth, columnWidth
 			return flex.Layout(gtx, flexChildren...)
 		})
 		allRows[rowIndex] = flexChild
@@ -366,7 +367,7 @@ func (c *Calendar) drawMonthsDropdownItems(gtx Gtx) Dim {
 }
 
 func (c *Calendar) drawYearsDropdownItems(gtx Gtx) Dim {
-	gtx.Constraints.Max.Y = gtx.Dp(minCellHeight*4 + viewHeaderHeight)
+	//gtx.Constraints.Max.Y = gtx.Dp(minCellHeight*4 + viewHeaderHeight)
 	op.Offset(image.Point{
 		X: gtx.Dp(16) + gtx.Dp(dropdownWidth) + gtx.Dp(spaceBetweenHeaderDropdowns),
 		Y: gtx.Dp(viewHeaderHeight) + gtx.Dp(8),
