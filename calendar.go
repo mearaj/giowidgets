@@ -79,7 +79,6 @@ type Calendar struct {
 	FirstDayOfWeek time.Weekday
 	cellItemsArr   []*cellItem
 	maxWidth       int
-	maxHeight      int
 }
 
 func (c *Calendar) SetTime(t time.Time) {
@@ -106,7 +105,6 @@ func (c *Calendar) Layout(gtx Gtx) Dim {
 		c.Theme = material.NewTheme(gofont.Collection())
 	}
 	c.maxWidth = gtx.Constraints.Max.X
-	c.maxHeight = gtx.Constraints.Max.Y
 
 	firstDay := int(c.FirstDayOfWeek)
 	c.weekdays[0] = c.FirstDayOfWeek
@@ -130,7 +128,7 @@ func (c *Calendar) Layout(gtx Gtx) Dim {
 			return flex.Layout(gtx,
 				layout.Rigid(c.drawViewHeader),
 				layout.Rigid(c.drawHeaderRow),
-				layout.Flexed(1, c.drawBodyRows),
+				layout.Rigid(c.drawBodyRows),
 			)
 		})
 	})
@@ -138,7 +136,6 @@ func (c *Calendar) Layout(gtx Gtx) Dim {
 		c.drawMonthsDropdownItems(gtx)
 	}
 	if c.showYearsDropdown {
-		gtx.Constraints.Max.Y = d.Size.Y - gtx.Dp(viewHeaderHeight)
 		c.drawYearsDropdownItems(gtx)
 	}
 	return d
@@ -146,8 +143,7 @@ func (c *Calendar) Layout(gtx Gtx) Dim {
 
 func (c *Calendar) drawHeaderRow(gtx Gtx) Dim {
 	var flexChildren = make([]FlexChild, len(c.weekdays))
-	maxWidth := gtx.Constraints.Max.X
-	columnWidth := maxWidth / 7
+	columnWidth := c.maxWidth / 7
 	for i, day := range c.weekdays {
 		dayStr := strings.ToUpper(day.String()[0:3])
 		flexChildren[i] = c.drawHeaderColumn(gtx, dayStr, columnWidth)
@@ -189,7 +185,7 @@ func (c *Calendar) drawColumn(gtx Gtx, columnWidth int, btn *cellItem) FlexChild
 	return layout.Rigid(func(gtx Gtx) Dim {
 		bgColor := c.Theme.Bg
 		txtColor := c.Theme.Fg
-		txtColor.A = 170
+		txtColor.A = 190
 		if btn.Month() != c.Time().Month() {
 			bgColor = color.NRGBA(colornames.BlueGrey50)
 			txtColor.A = 100
@@ -241,8 +237,7 @@ func (c *Calendar) drawColumn(gtx Gtx, columnWidth int, btn *cellItem) FlexChild
 func (c *Calendar) drawBodyRows(gtx Gtx) Dim {
 	flex := Flex{Axis: layout.Vertical}
 	t := c.Time()
-	maxWidth := gtx.Constraints.Max.X
-	columnWidth := maxWidth / 7
+	columnWidth := c.maxWidth / 7
 	startDate := firstDayOfWeek(t, time.Monday)
 	lastDate := lastDayOfWeek(t, time.Monday)
 	day := startDate
@@ -309,7 +304,7 @@ func (c *Calendar) OnYearButtonClick(gtx Gtx, year *yearButton) {
 }
 
 func (c *Calendar) drawMonthsDropdownItems(gtx Gtx) Dim {
-	gtx.Constraints.Max.Y -= gtx.Dp(viewHeaderHeight)
+	gtx.Constraints.Max.Y = (c.maxWidth / 7) * 4
 	op.Offset(image.Point{
 		X: gtx.Dp(16),
 		Y: gtx.Dp(viewHeaderHeight) + gtx.Dp(8),
@@ -367,7 +362,7 @@ func (c *Calendar) drawMonthsDropdownItems(gtx Gtx) Dim {
 }
 
 func (c *Calendar) drawYearsDropdownItems(gtx Gtx) Dim {
-	//gtx.Constraints.Max.Y = gtx.Dp(minCellHeight*4 + viewHeaderHeight)
+	gtx.Constraints.Max.Y = (c.maxWidth / 7) * 4
 	op.Offset(image.Point{
 		X: gtx.Dp(16) + gtx.Dp(dropdownWidth) + gtx.Dp(spaceBetweenHeaderDropdowns),
 		Y: gtx.Dp(viewHeaderHeight) + gtx.Dp(8),
