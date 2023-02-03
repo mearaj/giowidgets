@@ -186,7 +186,7 @@ func (c *Calendar) drawColumn(gtx Gtx, columnWidth int, btn *cellItem) FlexChild
 	return layout.Rigid(func(gtx Gtx) Dim {
 		bgColor := c.Theme.Bg
 		txtColor := c.Theme.Fg
-		txtColor.A = 190
+		txtColor.A = 210
 		if btn.Month() != c.Time().Month() {
 			bgColor = color.NRGBA(colornames.BlueGrey50)
 			txtColor.A = 100
