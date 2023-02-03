@@ -132,7 +132,7 @@ func (c *Calendar) Layout(gtx Gtx) Dim {
 			)
 		})
 	})
-	fmt.Println(d.Size)
+
 	if c.ShowMonthsDropdown {
 		c.drawMonthsDropdownItems(gtx)
 	}
