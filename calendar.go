@@ -104,7 +104,7 @@ func (c *Calendar) Layout(gtx Gtx) Dim {
 	if c.Theme == nil {
 		c.Theme = material.NewTheme(gofont.Collection())
 	}
-	c.maxWidth = gtx.Constraints.Max.X
+	c.maxWidth = gtx.Constraints.Max.X - gtx.Dp(c.BodyInset.Left+c.BodyInset.Right)
 
 	firstDay := int(c.FirstDayOfWeek)
 	c.weekdays[0] = c.FirstDayOfWeek
@@ -132,6 +132,7 @@ func (c *Calendar) Layout(gtx Gtx) Dim {
 			)
 		})
 	})
+	fmt.Println(d.Size)
 	if c.ShowMonthsDropdown {
 		c.drawMonthsDropdownItems(gtx)
 	}
