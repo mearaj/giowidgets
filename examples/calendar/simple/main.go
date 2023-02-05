@@ -27,7 +27,7 @@ func main() {
 func loop(w *app.Window) error {
 	th := material.NewTheme(gofont.Collection())
 	c := giowidgets.Calendar{Theme: th}
-	c.BodyInset = layout.UniformInset(unit.Dp(16))
+	c.Inset = layout.UniformInset(unit.Dp(16))
 	c.FirstDayOfWeek = time.Monday
 	var ops op.Ops
 
